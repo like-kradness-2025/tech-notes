@@ -42,6 +42,15 @@ tech-notes/
 4. 「保存して」と言われるまではコミットしない
 5. コミットメッセージ: `notes: <slug>`
 
+## 記事追加手順
+
+1. `topics/_template.html` の内容を `topics/<slug>/index.html` にコピー
+2. `{{ title }}` `{{ date }}` `{{ tags }}` `{{ body_html }}` を実際の内容に置換
+3. 目次は h2 見出しから手動生成
+4. `🔗 参照URL` セクションに調査に使用したURLをリスト
+5. `index.html`（トップページ）の `<!-- 記事追加ここから -->` 〜 `<!-- 記事追加ここまで -->` 内に新規エントリを追記
+6. `git add topics/<slug>/` → `git commit -m "notes: <slug>"` → `git push`
+
 ## コミットルール
 
 - コミットメッセージは `notes: <slug>` 形式に統一
