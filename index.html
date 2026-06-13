@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tech Notes</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+
+<header class="site-header">
+  <h1>Tech Notes</h1>
+  <p class="site-subtitle">技術ノート — 調べたこと、学んだこと</p>
+</header>
+
+<main>
+  <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+    収録記事一覧
+  </p>
+
+  <ul class="article-list">
+    <li>
+      <a href="topics/sample-article/index.html" class="article-card">
+        <span class="article-card-title">サンプル記事</span>
+        <span class="article-card-meta">2025-01-15 — sample, template</span>
+      </a>
+    </li>
+    <!--
+      新しい記事を追加するときはこのパターンに従ってください:
+      <li>
+        <a href="topics/<slug>/index.html" class="article-card">
+          <span class="article-card-title">{{ title }}</span>
+          <span class="article-card-meta">{{ date }} — {{ tags }}</span>
+        </a>
+      </li>
+    -->
+  </ul>
+</main>
+
+<footer class="site-footer">
+  <p>tech-notes &mdash; built with Hermes Agent</p>
+</footer>
+
+</body>
+</html>

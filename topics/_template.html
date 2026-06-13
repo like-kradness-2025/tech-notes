@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} — Tech Notes</title>
+  <link rel="stylesheet" href="../../styles/main.css">
+</head>
+<body>
+
+<nav>
+  <a href="../../index.html" class="back-link">記事一覧に戻る</a>
+</nav>
+
+<article>
+  <header class="article-header">
+    <h1>{{ title }}</h1>
+    <div class="article-meta">
+      <span class="article-date">{{ date }}</span>
+      <span class="tags">
+        {% for tag in tags %}
+        <span class="tag">{{ tag }}</span>
+        {% endfor %}
+      </span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <div class="toc-title">目次</div>
+    <ul>
+    {% for heading in headings %}
+      <li><a href="#{{ heading.id }}">{{ heading.text }}</a></li>
+    {% endfor %}
+    </ul>
+  </div>
+
+  <section class="content">
+    {{ content_html }}
+  </section>
+
+  {% if references %}
+  <section class="references">
+    <h2>🔗 参照URL</h2>
+    <ul>
+    {% for url in references %}
+      <li><a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a></li>
+    {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</article>
+
+<footer class="site-footer">
+  <p>tech-notes &mdash; built with Hermes Agent</p>
+</footer>
+
+</body>
+</html>
