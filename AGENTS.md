@@ -55,7 +55,7 @@ tech-notes/
 
 - コミットメッセージは `notes: <slug>` 形式に統一
 - 1記事 = 1コミット
-- GitHub Pages は master ブランチのルートを参照
+- GitHub Pages は main ブランチのルートを参照
 
 ## 禁止事項
 
