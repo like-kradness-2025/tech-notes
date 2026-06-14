@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phase 1 3視点統合 — 候補生成＋スコアリングへの転換 — Tech Notes</title>
+  <link rel="stylesheet" href="../../styles/main.css">
+</head>
+<body>
+
+<nav>
+  <a href="../../index.html" class="back-link">← 記事一覧に戻る</a>
+</nav>
+
+<article>
+  <header class="article-header">
+    <h1>Phase 1: 板だけじゃ足りない — 3視点統合と、そこで気づいた「AND条件の罠」</h1>
+    <div class="article-meta">
+      <span class="article-date">2026-06-14</span>
+      <span class="tags">
+        <span class="tag">BTC</span>
+        <span class="tag">phase1</span>
+        <span class="tag">consensus</span>
+        <span class="tag">scoring</span>
+        <span class="tag">design-failure</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <div class="toc-title">目次</div>
+    <ul>
+      <li><a href="#intro">Phase 1 でやろうとしたこと</a></li>
+      <li><a href="#design">3視点の概要（VP/CVD + OI + Book）</a></li>
+      <li><a href="#failure">厳格コンセンサスがまったく動かなかった話</a></li>
+      <li><a href="#analysis">どこで詰まったか — 件数の積集合</a></li>
+      <li><a href="#consult">GPT-5.5の診断「疎な条件のANDは死ぬ」</a></li>
+      <li><a href="#rewrite">候補生成＋スコアリングに転換</a></li>
+      <li><a href="#results">結果 — 初めての+1シグナル</a></li>
+      <li><a href="#sweet">スイートスポット（P98）</a></li>
+      <li><a href="#lessons">この記事で学んだこと</a></li>
+      <li><a href="#next">次にやること</a></li>
+    </ul>
+  </div>
+
+  <section class="content">
+
+    <h2 id="intro">Phase 1 でやろうとしたこと</h2>
+    <p>
+      Phase 0（板データ4指標、Book Depth視点）で「吸収シグナルは実用できそう」というところまで確認できた。
+      次は<strong>CVD（累積出来高デルタ）の加速度</strong>と<strong>OI（建玉）の変化</strong>も加えて、3つの視点で吸収を捉えよう——これがPhase 1の設計。
+    </p>
+    <p>
+      <strong>たった1つの考え方</strong>: 板だけでなく「誰がどの方向でポジションを持ってるか」も見れば、吸収の質を判断できるはず。
+    </p>
+
+    <h2 id="design">3視点の概要（VP/CVD + OI + Book）</h2>
+
+    <h3>視点1: VP/CVD（出来高の流れ）</h3>
+    <table>
+      <thead><tr><th>指標</th><th>なにを測るか</th><th>優しい言い方</th></tr></thead>
+      <tbody>
+        <tr><td><strong>F1</strong> CVD加速度</td><td>net_tradeのゼロクロス</td><td>「買い優勢↔売り優勢の切り替え」</td></tr>
+        <tr><td><strong>F2</strong> CRR_1s</td><td>売 ÷ max(補充, 1)</td><td>「1秒単位の板消費のキツさ」</td></tr>
+        <tr><td><strong>F3</strong> VNR</td><td>出来高急増 + 値幅縮小</td><td>「大量の注文がレンジ内で処理された」</td></tr>
+        <tr><td><strong>F4</strong> フェイクアウトリスク</td><td>microprice乖離</td><td>「ミッドと加重価格が離れすぎてる」</td></tr>
+      </tbody>
+    </table>
+
+    <h3>視点2: OI（建玉の変化）</h3>
+    <table>
+      <thead><tr><th>指標</th><th>なにを測るか</th><th>優しい言い方</th></tr></thead>
+      <tbody>
+        <tr><td><strong>F5</strong> OI-Price乖離</td><td>OI方向 × 価格方向</td><td>「逆張りしてる人がいるか」</td></tr>
+        <tr><td><strong>F6</strong> OIインパルス</td><td>OI急変 + 値幅縮小</td><td>「ポジション爆増 or 爆減」</td></tr>
+        <tr><td><strong>F7</strong> 状態遷移</td><td>OI・価格・CVDの3軸分類</td><td>「買い優勢→売り優勢に切り替わった」</td></tr>
+      </tbody>
+    </table>
+
+    <h3>視点3: Book Depth（板の深さ）</h3>
+    <p>Phase 0の4指標（CRR_5s / WPS / RVZ / TMR）をそのまま流用。</p>
+
+    <h3>ゲート: G1 + G2</h3>
+    <table>
+      <thead><tr><th>ゲート</th><th>なにを測るか</th></tr></thead>
+      <tbody>
+        <tr><td><strong>G1</strong> MTF一貫性</td><td>1時間OIトレンド方向とCVDが一致してるか</td></tr>
+        <tr><td><strong>G2</strong> 流動性枯渇</td><td>スプレッドが広がってないか</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="failure">厳格コンセンサスがまったく動かなかった話</h2>
+    <p>
+      最初の設計はこうだった:<br>
+      <strong>「3視点のうち2つが合意 かつ G1とG2の両方を通過 → +1シグナル」</strong>
+    </p>
+    <p>しかし、結果は……</p>
+    <pre><code>Phase 1 Backtest Summary
+Pred +1 signals: 0
+TP/FP/FN: 0/0/61
+Precision: 0.0000
+Recall: 0.0000</code></pre>
+    <p class="fix">222,947行のデータに対して、+1シグナルは<strong>0件</strong>。何も出なかった。</p>
+
+    <div class="insight-box">
+      <strong>🤔 なぜ0件？</strong><br>
+      「各視点の精度が悪い」と思ったが、本当の原因は別にあった。
+    </div>
+
+    <h2 id="analysis">どこで詰まったか — 件数の積集合</h2>
+    <p>各条件の通過件数を1つずつ確認していくと、原因は一目瞭然だった:</p>
+    <pre><code>2-of-3 consensus:      4,559件  ← 候補はある
+G1通過（OI一致）:        429件  ← これでも可
+G2通過（流動性OK）:  144,673件  ← 問題なし
+G1 & G2:                 143件  ← ここで激減
+consensus & G1 & G2:       1件  ← ほぼゼロ！
+その1件も崩壊ラベルで+1にできない</code></pre>
+    <p>
+      <strong>問題の本質</strong>: 各条件が「正しい」かどうかは別として、<strong>疎な条件同士のANDで候補が消滅</strong>していた。
+      G1の通過率が0.2%と極端に低く、G2をかけるともう戻ってこない。
+    </p>
+
+    <p>さらに悪化要因:</p>
+    <ul>
+      <li><strong>F7（状態遷移）が全件0</strong> — 完全一致7連続は現実的に起こらない</li>
+      <li><strong>OIの成立率が約1%</strong> — ボトルネックとして機能しすぎている</li>
+      <li><strong>正例が61/222,947（0.027%）</strong> — ラベルそのものが希少</li>
+    </ul>
+
+    <h2 id="consult">GPT-5.5の診断「疎な条件のANDは死ぬ」</h2>
+    <p>ここでGPT-5.5に相談。返ってきた答え:</p>
+    <blockquote>
+      <strong>主因は各ビューではなく、consensus & G1 & G2 の積集合が極端に疎なこと。</strong><br>
+      弱いモデル以前に、疎な条件同士のANDで候補を消滅させている。<br>
+      <strong>strict consensusを最終発火条件として使う設計は放棄すべき。</strong>
+    </blockquote>
+
+    <p>GPT-5.5が提案した修正:</p>
+    <ol>
+      <li><strong>G1/G2 の同時必須をやめる</strong> → 加点項目にする</li>
+      <li><strong>F7 をハードゲートから外す</strong> → 全件0の条件は意味がない</li>
+      <li><strong>OI も加点にする</strong> → 必須にすると候補が死ぬ</li>
+      <li><strong>残すハードリジェクトは collapse だけ</strong></li>
+    </ol>
+
+    <div class="code-label">新しい判定ロジック</div>
+    <pre><code>candidate = 2-of-3 consensus かつ collapseでない
+total_score = views_agree * 0.30
+            + G1 * 0.15
+            + G2 * 0.10
+            + OI_continuous * 0.10
+            + F7_bonus * 0.10
+    
+signal = candidate かつ total_score >= train_quantile(P98)</code></pre>
+
+    <h2 id="rewrite">候補生成＋スコアリングに転換</h2>
+    <p>
+      書き換えたバックテストでは、strict consensus を最終発火条件から外した。
+      <strong>「まず候補を広く取って、その上でスコアでランク付けする」</strong>という、素直な二段構え。
+    </p>
+    <p>
+      閾値は<strong>パーセンタイルスイープ</strong>で決める。P50からP99.5まで振って、件数・Precision・Recall・Forward Return を一覧する。
+    </p>
+
+    <h2 id="results">結果 — 初めての+1シグナル</h2>
+
+    <h3>基本統計</h3>
+    <table>
+      <thead><tr><th>項目</th><th>件数</th></tr></thead>
+      <tbody>
+        <tr><td>総データ行</td><td style="text-align:right">222,947</td></tr>
+        <tr><td>2-of-3 候補（非collapse）</td><td style="text-align:right; color:#66bb6a"><strong>3,116</strong></td></tr>
+        <tr><td>+1ラベル</td><td style="text-align:right">61</td></tr>
+      </tbody>
+    </table>
+    <p>
+      以前の「0件」から<strong>3,116件の候補</strong>が確保できた。これだけあれば、あとは絞り込みの問題。
+    </p>
+
+    <h3>スイープ結果（一部抜粋）</h3>
+    <table>
+      <thead><tr><th>閾値</th><th>件数</th><th>Precision</th><th><strong>15m勝率</strong></th><th><strong>30m勝率</strong></th><th><strong>1h勝率</strong></th></tr></thead>
+      <tbody>
+        <tr><td>P50</td><td>3,116</td><td>0.010</td><td>49.4%</td><td>54.6%</td><td>57.8%</td></tr>
+        <tr><td>P80</td><td>1,068</td><td>0.010</td><td>50.3%</td><td>55.1%</td><td>57.5%</td></tr>
+        <tr><td><strong>P98</strong></td><td><strong>63</strong></td><td>0.032</td><td>52.4%</td><td><strong>68.2%</strong></td><td><strong>71.4%</strong></td></tr>
+        <tr><td>P99</td><td>36</td><td>0.056</td><td>36.1%</td><td>55.6%</td><td>63.9%</td></tr>
+        <tr><td>P99.5</td><td>16</td><td>0.062</td><td>31.2%</td><td>50.0%</td><td>43.8%</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="sweet">スイートスポット（P98）</h2>
+    <p>
+      P98が最もバランスが取れている:
+    </p>
+    <ul>
+      <li><strong>63件</strong> — 実戦で検証できる件数</li>
+      <li><strong>30分勝率68.2%</strong> — ショートリバーサルとして十分</li>
+      <li><strong>1時間勝率71.4%</strong> — 長期ホールドでも機能</li>
+      <li>Precision 0.032 はまだ低いが、GTの120秒/3bpsがかなり厳しいことを考慮すると妥当</li>
+    </ul>
+
+    <blockquote>
+      <strong>Phase 1で得た最大の知見</strong>: 「厳格なコンセンサス」より「広めの候補＋スコアリング」のほうが結果を出せる。<br>
+      精度はスコア閾値で調整できる。候補さえ確保すれば、あとは絞りの問題。
+    </blockquote>
+
+    <h2 id="lessons">この記事で学んだこと</h2>
+
+    <div class="lesson">
+      <h3>1️⃣ 疎なANDは思考停止する</h3>
+      <p>
+        G1通過率0.2% × G2通過率35% = 0.07%。さらに2-of-3に絞ると0.02%になる。
+        正例が0.027%の世界では、AND 3段は確実に候補を消す。<strong>「ANDは2まで」</strong>が安全域。
+      </p>
+    </div>
+
+    <div class="lesson">
+      <h3>2️⃣ 全件0の特徴量は即刻外す</h3>
+      <p>
+        F7_transition（状態遷移検出）が全件0だった。完全一致7連続は現実的でない。
+        死んだ特徴量は判定材料として機能しない。<strong>「テストデータで0なら設計が間違っている」</strong>と割り切る。
+      </p>
+    </div>
+
+    <div class="lesson">
+      <h3>3️⃣ 疎な指標はゲートにしない</h3>
+      <p>
+        OI（成立率約1%）を必須条件にすると、他の条件が満たせても救えない。
+        <strong>疎な指標は加点に回す</strong>。必須にするのは通過率50%以上の指標だけ。
+      </p>
+    </div>
+
+    <div class="lesson">
+      <h3>4️⃣ パーセンタイル閾値で絞るのが安全</h3>
+      <p>
+        固定閾値（0.60、0.35等）はデータ分布が変わると意味を失う。
+        学習期間のパーセンタイルで「上位N%だけ発火」にすると、<strong>データ分布に適応する</strong>絞り込みができる。
+      </p>
+    </div>
+
+    <h2 id="next">次にやること</h2>
+    <ol>
+      <li><strong>F7の再設計</strong>: 完全一致7連続 → 直近の状態遷移有無（より現実的な検出ロジック）</li>
+      <li><strong>OI特徴量の調整</strong>: 通過率1% → 3-5%に緩和して加点として使えるようにする</li>
+      <li><strong>Walk-forward検証</strong>: パーセンタイル閾値をローリングで適用して過学習をチェック</li>
+      <li><strong>GPT-5.5 + code-reviewer 95点ゲート</strong>: 設計確定後にレビューを通過させる</li>
+    </ol>
+
+  </section>
+
+  <section class="references">
+    <h2>🔗 関連リンク</h2>
+    <ul>
+      <li><a href="../absorption-backtest-phase0/index.html">第1回: Phase 0 — 板データ4指標の検証</a></li>
+      <li><a href="https://github.com/like-kradness-2025/tech-notes" target="_blank" rel="noopener">tech-notes リポジトリ</a></li>
+    </ul>
+  </section>
+</article>
+
+<footer class="site-footer">
+  <p>tech-notes &mdash; built with Hermes Agent | 実験データ: /home/weed420/orderflow_research/output/</p>
+</footer>
+
+<style>
+.meta { color: #888; font-size: 14px; }
+.fix { background: #1e3a1e; border-left: 4px solid #66bb6a; padding: 8px 14px; margin: 8px 0; border-radius: 4px; }
+.insight-box { background: #1a2a3a; border-left: 4px solid #42a5f5; padding: 12px 16px; margin: 16px 0; border-radius: 6px; }
+.code-label { background: #2d2d2d; color: #ccc; padding: 4px 10px; font-size: 12px; border-radius: 4px 4px 0 0; display: inline-block; margin-top: 12px; }
+.code-label + pre { margin-top: 0; border-radius: 0 4px 4px 4px; }
+.lesson { background: #1e1e2e; border-left: 4px solid #ce93d8; padding: 12px 16px; margin: 16px 0; border-radius: 6px; }
+.lesson h3 { margin-top: 0; color: #ce93d8; }
+</style>
+
+</body>
+</html>
