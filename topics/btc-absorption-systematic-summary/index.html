@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC吸収検出の全体構造 — データ分析・位置的文脈・時間的優位性 — Tech Notes</title>
+  <link rel="stylesheet" href="../../styles/main.css">
+</head>
+<body>
+
+<nav>
+  <a href="../../index.html" class="back-link">記事一覧に戻る</a>
+</nav>
+
+<article>
+  <header class="article-header">
+    <h1>BTC吸収検出の全体構造 — データ分析・位置的文脈・時間的優位性</h1>
+    <div class="article-meta">
+      <span class="article-date">2026-06-15</span>
+      <span class="tags">
+        <span class="tag">btc</span>
+        <span class="tag">absorption</span>
+        <span class="tag">features_1s</span>
+        <span class="tag">vwap</span>
+        <span class="tag">time-of-day</span>
+        <span class="tag">summary</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <div class="toc-title">目次</div>
+    <ul>
+      <li><a href="#overview">まず全体像</a></li>
+      <li><a href="#timeline">Phase 0 から今までの流れ</a></li>
+      <li><a href="#data-analysis">1. データ分析層</a></li>
+      <li><a href="#context">2. 位置的文脈層</a></li>
+      <li><a href="#time-edge">3. 時間的優位性層</a></li>
+      <li><a href="#operating-rule">今の実務フロー</a></li>
+      <li><a href="#lessons">ここまでの学び</a></li>
+      <li><a href="#next">次に残る課題</a></li>
+    </ul>
+  </div>
+
+  <section class="content">
+    <h2 id="overview">まず全体像</h2>
+    <p>
+      このプロジェクトは、BTCが売られた局面で「<strong>売りが強いのに価格が崩れない</strong>」場面を見つけるために始まった。
+      いわゆる<strong>吸収（absorption）</strong>を、勘ではなくデータで拾うのが目的だった。
+    </p>
+    <p>
+      いまの整理では、シグナルは単なる「板の異常検知」ではない。
+      <strong>データ分析 → 位置的文脈 → 時間的優位性</strong> の3層で見ないと、実戦では弱い。
+    </p>
+    <p>
+      ざっくり言うと、
+      <strong>何が起きているか</strong> をデータで見つけ、
+      <strong>どこで起きているか</strong> を位置で判断し、
+      <strong>いつ起きているか</strong> を時間で絞る。
+    </p>
+
+    <pre><code>features_1s
+  ↓
+候補生成（吸収っぽい局面を拾う）
+  ↓
+位置的文脈（VWAP / TPO / POC / レンジ）
+  ↓
+時間的優位性（時間帯 / 反応速度 / early-exit）
+  ↓
+上位パーセンタイルだけを残す</code></pre>
+
+    <h2 id="timeline">Phase 0 から今までの流れ</h2>
+    <p>
+      Phase 0 では、まず板データの基本形から始めた。
+      ここで重要だったのは、<strong>吸収が本当に存在するのか</strong> を確認すること。
+      まだ粗いが、板・出来高・価格反応の組み合わせで、反発候補が完全な幻想ではないと分かった。
+    </p>
+    <p>
+      その後の Phase 1 前半では、精度を上げようとして条件を増やしたが、
+      条件が厳しすぎて候補がほぼ消えた。
+      ここで「良い条件を足せば良いシグナルになる」という考えが崩れた。
+    </p>
+    <p>
+      そこで、視点を役割別に分ける形に再設計した。
+      最終的には、<strong>候補生成＋スコアリング</strong> の形に寄せ、
+      ラベルも固定bpsではなく <strong>ATR相対</strong> に再定義した。
+    </p>
+    <p>
+      つまり流れとしては、
+      <strong>「吸収はある」→「でも条件を盛りすぎると死ぬ」→「役割分担と文脈付けで再構築」</strong>
+      という進化だった。
+    </p>
+
+    <h2 id="data-analysis">1. データ分析層</h2>
+    <p>
+      ここは、<strong>“吸収っぽいものをデータから見つける層”</strong>。
+      何より先に必要なのは、シグナルが本当にあるかどうかを確認すること。
+    </p>
+
+    <h3>Phase 0 の役割</h3>
+    <p>
+      Phase 0 では、まず板の深さや消費・補充のバランスを見た。
+      代表的な考え方は次の4つ。
+    </p>
+    <table>
+      <thead>
+        <tr><th>指標</th><th>見るもの</th><th>意味</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>CRR</strong></td><td>成行消費 ÷ 指値補充</td><td>板が攻撃に耐えているか</td></tr>
+        <tr><td><strong>WPS</strong></td><td>板の厚みの安定性</td><td>壁が維持されているか</td></tr>
+        <tr><td><strong>RVZ</strong></td><td>補充速度の異常度</td><td>いつもより早く補充されているか</td></tr>
+        <tr><td><strong>TMR</strong></td><td>成行消費 ÷ 指値取消</td><td>板が防御しているか、崩れているか</td></tr>
+      </tbody>
+    </table>
+    <p>
+      噛み砕くと、<strong>売りが来ても板が持ちこたえているか</strong> を見ていた。
+      これが吸収の原型になる。
+    </p>
+
+    <h3>Phase 1 で何が起きたか</h3>
+    <p>
+      次に、CVD や OI を加えて、より多面的に見ようとした。
+      しかし、条件を足しすぎたことで、<strong>正しいけれど疎な条件同士の AND</strong> が候補を消してしまった。
+    </p>
+    <p>
+      ここで重要だったのは、<strong>全部を必須にする設計は危険</strong> だと分かったこと。
+      特に、通過率が極端に低い条件をゲートに置くと、何も残らない。
+    </p>
+
+    <h3>再設計の方針</h3>
+    <p>
+      そこで、特徴量は役割ごとに整理し、最終判定は「AND」ではなく
+      <strong>候補生成 → スコアリング</strong> に変えた。
+      ここでの役割分担は、概ね次の4つ。
+    </p>
+    <ul>
+      <li><strong>Orderflow Absorption</strong> — 売りを受け止めているか</li>
+      <li><strong>OI Confirmation</strong> — 建玉の変化が本物か</li>
+      <li><strong>Book Depth Support/Resistance</strong> — 板が支えているか</li>
+      <li><strong>Context / Location</strong> — どんな場所で起きているか</li>
+    </ul>
+    <p>
+      この整理によって、単純な板の異常ではなく、
+      <strong>“吸収らしさ” を多視点で合成する設計</strong> になった。
+    </p>
+
+    <h3>ラベルの見直しが効いた</h3>
+    <p>
+      固定bpsのラベルは、相場環境によって歪みやすかった。
+      そこで <strong>ATR相対ラベル</strong> に切り替えたことで、
+      「その場でどれくらい動いたか」を相場に対して相対的に見られるようになった。
+    </p>
+    <p>
+      この変更で、正例の件数は大きく増え、検証の意味が出た。
+      つまり、<strong>ラベルが定常化すると、特徴量の良し悪しが見えるようになる</strong>。
+    </p>
+
+    <h3>データ分析層の結論</h3>
+    <p>
+      この層の役割は、<strong>シグナル候補を見つけること</strong>。
+      ただし、候補を増やすだけでは足りない。
+      候補の中から、文脈と時間で落とし込む必要がある。
+    </p>
+
+    <h2 id="context">2. 位置的文脈層</h2>
+    <p>
+      次の層は、<strong>“そのシグナルがどこで出たのか”</strong> を見る層。
+      同じ吸収の形でも、出た場所が違えば意味が変わる。
+    </p>
+    <p>
+      ここで使うのが、VWAP や TPO、POC、直近レンジ、価格乖離といった位置情報。
+      吸収は、<strong>価格が市場の中心に近いか、端に寄りすぎているか</strong> で強さが変わる。
+    </p>
+
+    <h3>なぜ場所が重要か</h3>
+    <p>
+      価格がみんなに見られている場所の近くなら、参加者が多い。
+      逆に、平均から遠すぎる場所では、支えが効いても無理筋になりやすい。
+    </p>
+    <p>
+      噛み砕くと、
+      <strong>“同じ吸収でも、駅前で起きるのと人気のない道で起きるのは違う”</strong>
+      ということ。
+    </p>
+
+    <h3>代表的な位置指標</h3>
+    <table>
+      <thead>
+        <tr><th>指標</th><th>何を見るか</th><th>実務上の意味</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>VWAP</strong></td><td>取引の平均価格</td><td>市場参加者の中心</td></tr>
+        <tr><td><strong>TPO / POC</strong></td><td>時間帯別の受け入れ位置</td><td>よく売買された価格帯</td></tr>
+        <tr><td><strong>直近レンジ</strong></td><td>最近の高値安値</td><td>端に寄りすぎていないか</td></tr>
+        <tr><td><strong>価格乖離</strong></td><td>平均からのズレ</td><td>無理な場所かどうか</td></tr>
+      </tbody>
+    </table>
+
+    <h3>位置的文脈の結論</h3>
+    <p>
+      位置的文脈は、<strong>「この吸収は、意味のある場所で起きたか」</strong> を判断するための層。
+      ここが悪いと、データ上は吸収っぽく見えても、実戦ではだましになりやすい。
+    </p>
+
+    <h2 id="time-edge">3. 時間的優位性層</h2>
+    <p>
+      3つ目の層は、<strong>“いつ起きたか”</strong> を見る層。
+      これは単なる曜日・時間帯の話ではなく、<strong>反応速度と持続性</strong> も含む。
+    </p>
+
+    <h3>時間帯による差</h3>
+    <p>
+      同じ形でも、時間帯で成績が変わる。
+      とくに東京時間の昼はだましが増えやすく、逆に夕方以降は素直に伸びる場面がある。
+      つまり、<strong>市場は24時間同じ性格ではない</strong>。
+    </p>
+
+    <h3>15分 early-exit の考え方</h3>
+    <p>
+      吸収が本物なら、入ったあとに比較的早く反応する。
+      15分たっても含み損のままなら、思ったほど買いが強くない可能性が高い。
+    </p>
+    <p>
+      ここでの重要点は、<strong>時間はエントリー条件であると同時に、出口条件でもある</strong> こと。
+      つまり「いつ入るか」だけでなく「いつ見切るか」が、時間的優位性の一部になる。
+    </p>
+
+    <h3>walk-forward の意味</h3>
+    <p>
+      時間的優位性は、単発のバックテストではなく、walk-forward で確認する必要がある。
+      その場では強く見えても、別期間で崩れるなら、本当に時間の優位性があるとは言えない。
+    </p>
+
+    <h3>時間的優位性の結論</h3>
+    <p>
+      時間層は、<strong>「入る時間」</strong> と <strong>「反応の時間」</strong> を同時に扱う。
+      これで、勝てる局面を増やすというより、<strong>負ける局面を減らす</strong> 方向に効く。
+    </p>
+
+    <h2 id="operating-rule">今の実務フロー</h2>
+    <p>
+      ここまでをまとめると、現在の実務フローはかなり明確になっている。
+      先に候補を取り、次に場所、最後に時間で落とす。
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>工程</th><th>見ること</th><th>落とすもの</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1. 候補生成</td><td>吸収らしい板・出来高・OIの異常</td><td>何も起きていないもの</td></tr>
+        <tr><td>2. 位置フィルタ</td><td>VWAP / TPO / 価格乖離 / レンジ</td><td>遠すぎる・端すぎる場所</td></tr>
+        <tr><td>3. 時間フィルタ</td><td>時間帯 / 反応速度 / walk-forward</td><td>だましが増える時間帯</td></tr>
+        <tr><td>4. 退出制御</td><td>15分 early-exit</td><td>反応しない負けシナリオ</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      実務上は、<strong>P98〜P99級の上位スコアだけ残す</strong> 方針が自然だった。
+      頻度を上げるより、精度を上げるほうが理にかなっている。
+    </p>
+
+    <h2 id="lessons">ここまでの学び</h2>
+    <ul>
+      <li><strong>データ分析だけでは足りない</strong> — 形が良くても場所が悪ければ弱い</li>
+      <li><strong>位置だけでも足りない</strong> — どこで起きても、反応が遅ければ負ける</li>
+      <li><strong>時間だけでも足りない</strong> — 良い時間でも、候補が雑なら意味がない</li>
+      <li><strong>疎な条件をANDしすぎると死ぬ</strong> — 候補を消さず、スコアで絞るほうが良い</li>
+      <li><strong>ラベル定義は特徴量と同じくらい重要</strong> — ATR相対化で見え方が変わった</li>
+    </ul>
+
+    <h2 id="next">次に残る課題</h2>
+    <p>
+      いまのシグナルは、かなり筋が良いところまで来ている。
+      ただし、まだ最後の詰めがある。
+    </p>
+    <ol>
+      <li>負ける30〜35%を、位置と時間でさらに削る</li>
+      <li>long / short を分けて、方向別に最適化する</li>
+      <li>より長い期間で walk-forward を積み上げる</li>
+      <li>必要な場合だけ生データへ降りる（順序情報・大口/小口判定など）</li>
+    </ol>
+    <p>
+      つまり、今は「シグナルを作る段階」から、<strong>“どのシグナルだけ残すか” を詰める段階</strong> に入っている。
+    </p>
+  </section>
+
+  <section class="references">
+    <h2>🔗 参照URL</h2>
+    <ul>
+      <li><a href="file:///home/weed420/absorption_phase1_handoff_20260615.md" target="_blank" rel="noopener">file:///home/weed420/absorption_phase1_handoff_20260615.md</a></li>
+      <li><a href="file:///home/weed420/absorption_phase1_handoff.md" target="_blank" rel="noopener">file:///home/weed420/absorption_phase1_handoff.md</a></li>
+      <li><a href="file:///home/weed420/tech-notes/topics/btc-absorption-phase0-to-now/index.html" target="_blank" rel="noopener">file:///home/weed420/tech-notes/topics/btc-absorption-phase0-to-now/index.html</a></li>
+      <li><a href="file:///home/weed420/tech-notes/topics/btc-absorption-win-patterns/index.html" target="_blank" rel="noopener">file:///home/weed420/tech-notes/topics/btc-absorption-win-patterns/index.html</a></li>
+      <li><a href="file:///home/weed420/tech-notes/topics/absorption-phase1-consensus/index.html" target="_blank" rel="noopener">file:///home/weed420/tech-notes/topics/absorption-phase1-consensus/index.html</a></li>
+      <li><a href="file:///home/weed420/tech-notes/topics/absorption-backtest-phase0/index.html" target="_blank" rel="noopener">file:///home/weed420/tech-notes/topics/absorption-backtest-phase0/index.html</a></li>
+    </ul>
+  </section>
+</article>
+
+<footer class="site-footer">
+  <p>tech-notes &mdash; built with Hermes Agent</p>
+</footer>
+
+</body>
+</html>
