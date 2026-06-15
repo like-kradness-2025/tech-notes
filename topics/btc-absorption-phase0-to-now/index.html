@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC吸収検出 Phase 0からここまでの流れ — Tech Notes</title>
+  <link rel="stylesheet" href="../../styles/main.css">
+</head>
+<body>
+
+<nav>
+  <a href="../../index.html" class="back-link">記事一覧に戻る</a>
+</nav>
+
+<article>
+  <header class="article-header">
+    <h1>BTC吸収検出 Phase 0からここまでの流れ</h1>
+    <div class="article-meta">
+      <span class="article-date">2026-06-15</span>
+      <span class="tags">
+        <span class="tag">btc</span>
+        <span class="tag">absorption</span>
+        <span class="tag">phase0</span>
+        <span class="tag">phase1</span>
+        <span class="tag">backtest</span>
+        <span class="tag">beginner-friendly</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <div class="toc-title">目次</div>
+    <ul>
+      <li><a href="#goal">何を見つけたかったか</a></li>
+      <li><a href="#phase0">Phase 0: まず土台を作る</a></li>
+      <li><a href="#stumble">Phase 1前半: 条件を増やしすぎた</a></li>
+      <li><a href="#rebuild">再設計: 4-viewに整理した</a></li>
+      <li><a href="#label">ラベルを見直して、勝てる塊を探した</a></li>
+      <li><a href="#loss">負ける35%をどう減らすか</a></li>
+      <li><a href="#current">今の結論</a></li>
+    </ul>
+  </div>
+
+  <section class="content">
+    <h2 id="goal">何を見つけたかったか</h2>
+    <p>
+      いちばん最初の狙いは、<strong>BTCが売られたのに、あまり下がらない場面</strong>を見つけることだった。
+      これは、売りを誰かが受け止めている状態で、いわゆる<strong>吸収</strong>っぽい動き。
+    </p>
+    <p>
+      噛み砕くと、<strong>「売りが強そうなのに、価格が踏ん張る瞬間」</strong> を拾いたかった。
+      そこを取れれば、反発を先回りしやすい。
+    </p>
+    <p>
+      技術的には、1秒粒度の <code>features_1s</code> を軸にして、
+      吸収っぽい局面をスコア化し、30分後・1時間後に勝っているかを検証する流れで進めた。
+    </p>
+
+    <h2 id="phase0">Phase 0: まず土台を作る</h2>
+    <p>
+      Phase 0 は、ざっくり言うと<strong>「怪しい場所を拾えるか」</strong> を見る段階だった。
+      まだ荒いけれど、板・価格・出来高の基本形を使って、吸収の原型を作った。
+    </p>
+    <p>
+      たとえると、最初は地図の上に付箋を貼るようなもの。
+      どこが怪しいかは分かるが、まだ精密ではない。
+    </p>
+    <p>
+      技術面では、板圧力・出来高偏り・価格反応をベースに特徴量を組み、
+      Phase 0 バックテストで「反発点の吸収」が完全に外れではないことを確認した。
+      ただし、安定したシグナルというより、<strong>芽がある</strong> という段階だった。
+    </p>
+
+    <h2 id="stumble">Phase 1前半: 条件を増やしすぎた</h2>
+    <p>
+      次に、精度を上げようとして条件をどんどん足した。
+      ところが、条件が厳しすぎて、<strong>全部そろう場面が少なすぎる</strong> という問題にぶつかった。
+    </p>
+    <p>
+      噛み砕くと、
+      <strong>「見つけたいものが細かすぎて、ほとんど見えなくなった」</strong> 状態。
+    </p>
+    <p>
+      技術的には、F5 / F6 / F7 / OI view を積み上げたが、
+      AND条件が強すぎて通過率が落ち、特に F7 は最初ほぼ死んでいた。
+      ここで、単純に条件を増やせばよいわけではなく、
+      <strong>生きている特徴量と死んでいる特徴量を分ける必要</strong> が見えてきた。
+    </p>
+
+    <h2 id="rebuild">再設計: 4-viewに整理した</h2>
+    <p>
+      そこで、バラバラに盛るのをやめて、役割ごとに4つの視点へ整理した。
+      これで、シグナルが何を見ているのかがはっきりした。
+    </p>
+    <p>4つの視点は次の通り。</p>
+    <ul>
+      <li><strong>Orderflow Absorption</strong> — 売りを受け止めているか</li>
+      <li><strong>OI Confirmation</strong> — 建玉の動きが本物か</li>
+      <li><strong>Book Depth Support/Resistance</strong> — 板が支えているか</li>
+      <li><strong>Context / Location</strong> — VWAPやTPOでどんな場所か</li>
+    </ul>
+    <p>
+      噛み砕くと、<strong>「値動きだけではなく、場所と状況も見る」</strong> 形にした。
+      これで、単純な板シグナルから、文脈込みの吸収判定に進めた。
+    </p>
+    <p>
+      技術的には、ノイズ特徴量を削り、TPO / VWAP を位置情報として追加。
+      役割ごとに特徴量を分けたことで、何が効いているか追いやすくなった。
+    </p>
+
+    <h2 id="label">ラベルを見直して、勝てる塊を探した</h2>
+    <p>
+      次の課題は、<strong>勝ち負けの判定そのもの</strong> だった。
+      固定bpsの判定だと相場環境で歪むので、ATR相対ラベルに切り替えた。
+    </p>
+    <p>
+      噛み砕くと、
+      <strong>「絶対値ではなく、そのときの相場に対してどれくらい動いたか」</strong> で見るようにした、ということ。
+    </p>
+    <p>
+      技術的には、ATR相対化でラベルを再定義し、
+      +1 ラベルが大きく増えた。
+      さらに forward stats、walk-forward の FN、recall 分母などのバグも修正して、
+      検証がちゃんと回るように整えた。
+    </p>
+    <p>
+      その結果、上位パーセンタイルでまとまって勝てる塊が見えた。
+      特に P98〜P99 あたりで、件数は少ないが勝率はかなり良い。
+    </p>
+
+    <h2 id="loss">負ける35%をどう減らすか</h2>
+    <p>
+      6割勝てるなら十分強いように見えるが、実戦では残りの負けが気になる。
+      なので次は、<strong>当たりを増やす</strong> より、<strong>負けを避ける</strong> 方針になった。
+    </p>
+    <p>
+      噛み砕くと、
+      <strong>「怪しい場面は最初から取らない」</strong>
+      という考え方。
+    </p>
+    <p>負けやすい特徴として目立ったのは次の通り。</p>
+    <ul>
+      <li>VWAPから遠い</li>
+      <li>レンジの端すぎる</li>
+      <li>東京時間の昼など、だましが増えやすい</li>
+      <li>入っても15分で反応しない</li>
+    </ul>
+    <p>
+      ここから、<strong>15分 early-exit</strong> と <strong>時間帯フィルタ</strong> が有力になった。
+      つまり、<strong>入ったあとも見張る</strong> のではなく、
+      <strong>最初から悪い場面を減らす</strong> 方向に進んだ。
+    </p>
+
+    <h2 id="current">今の結論</h2>
+    <p>
+      いまの整理はシンプルで、吸収シグナルは
+      <strong>「売られても落ちない場所を拾う道具」</strong> になった。
+    </p>
+    <p>
+      噛み砕くと、
+      <strong>場所・時間・反応</strong> の3点が大事。
+      ただ強そうに見えるだけではだめで、
+      <strong>ちょうどいい場所で、ちょうどいい時間に、ちゃんと反応するか</strong>
+      を見ないといけない。
+    </p>
+    <p>
+      技術的には、Phase 0 から始まって、
+      特徴量の再設計、ラベルの再定義、バックテストの修正を経て、
+      今は <code>features_1s</code> ベースでかなり筋の良いシグナルが見えている。
+      次の焦点は、<strong>負ける30〜35%をどう削るか</strong> だ。
+    </p>
+  </section>
+
+  <section class="references">
+    <h2>🔗 参照URL</h2>
+    <ul>
+      <li><a href="file:///home/weed420/absorption_phase1_handoff_20260615.md" target="_blank" rel="noopener">file:///home/weed420/absorption_phase1_handoff_20260615.md</a></li>
+      <li><a href="file:///home/weed420/absorption_phase1_handoff.md" target="_blank" rel="noopener">file:///home/weed420/absorption_phase1_handoff.md</a></li>
+      <li><a href="file:///home/weed420/tech-notes/topics/btc-absorption-win-patterns/index.html" target="_blank" rel="noopener">file:///home/weed420/tech-notes/topics/btc-absorption-win-patterns/index.html</a></li>
+    </ul>
+  </section>
+</article>
+
+<footer class="site-footer">
+  <p>tech-notes &mdash; built with Hermes Agent</p>
+</footer>
+
+</body>
+</html>
