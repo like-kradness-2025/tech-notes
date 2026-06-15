@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC吸収シグナルの6割の勝ちパターン — Tech Notes</title>
+  <link rel="stylesheet" href="../../styles/main.css">
+</head>
+<body>
+
+<nav>
+  <a href="../../index.html" class="back-link">記事一覧に戻る</a>
+</nav>
+
+<article>
+  <header class="article-header">
+    <h1>BTC吸収シグナルの6割の勝ちパターン</h1>
+    <div class="article-meta">
+      <span class="article-date">2026-06-15</span>
+      <span class="tags">
+        <span class="tag">btc</span>
+        <span class="tag">orderflow</span>
+        <span class="tag">absorption</span>
+        <span class="tag">vwap</span>
+        <span class="tag">beginner-friendly</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="toc">
+    <div class="toc-title">目次</div>
+    <ul>
+      <li><a href="#summary">まず結論</a></li>
+      <li><a href="#what-is-absorption">吸収って何？</a></li>
+      <li><a href="#winning-pattern">6割勝ちやすい場面</a></li>
+      <li><a href="#losing-pattern">負けやすい場面</a></li>
+      <li><a href="#how-to-use">どう使うか</a></li>
+      <li><a href="#checklist">実戦チェックリスト</a></li>
+    </ul>
+  </div>
+
+  <section class="content">
+    <h2 id="summary">まず結論</h2>
+    <p>
+      吸収シグナルは、<strong>「売りが強いのに価格があまり下がらない場面」</strong>で出やすい。
+      このタイプは、ちゃんと条件がそろうと <strong>約6割</strong> は勝ちやすい。
+    </p>
+    <p>
+      ただし、どの場面でも使えるわけではない。
+      <strong>場所・時間・反応の速さ</strong> を見て、怪しい場面を捨てるのが大事。
+    </p>
+
+    <h2 id="what-is-absorption">吸収って何？</h2>
+    <p>
+      かんたんに言うと、<strong>売りを誰かが受け止めている状態</strong>。
+      みんなが「売りたい」と思っても、価格がスルッと落ちないなら、裏で買っている人がいるかもしれない。
+    </p>
+    <p>イメージは綱引き。</p>
+    <ul>
+      <li>相手が強く引いている</li>
+      <li>でもロープがあまり動かない</li>
+      <li>→ 受け止める側が強い = 吸収の可能性</li>
+    </ul>
+    <p>
+      つまり吸収は、<strong>「売りが空振りしている瞬間」</strong> を探す考え方。
+    </p>
+
+    <h2 id="winning-pattern">6割勝ちやすい場面</h2>
+    <p>
+      勝ちやすいのは、<strong>無理のない場所で、自然に支えが入っている場面</strong>。
+      もっと短く言うと、<strong>「落ちそうで落ちない」</strong> とき。
+    </p>
+
+    <h3>1. 価格が“遠すぎない”</h3>
+    <p>
+      平均価格から少しズレているくらいはOK。
+      でも、遠くまで行きすぎると疲れた相場になりやすい。
+      そこからの吸収は、無理やり支えているだけになりがち。
+    </p>
+
+    <h3>2. みんなが見ている場所の近く</h3>
+    <p>
+      VWAPや直近のよく取引された価格の近くは、参加者が多い。
+      人が多い場所は、買いも売りも入りやすいので、支えが効きやすい。
+    </p>
+
+    <h3>3. すぐ反応する</h3>
+    <p>
+      本当に強い吸収なら、入ったあとに早めに反応する。
+      逆に、入ってしばらくしてもダメなら、思ったほど買いが強くない可能性が高い。
+    </p>
+
+    <h3>4. 変な時間帯ではない</h3>
+    <p>
+      市場は時間帯で性格が変わる。
+      たとえば東京の昼は、シグナルがだましになりやすかった。
+      同じ形でも、時間が悪いと勝ちにくい。
+    </p>
+
+    <blockquote>
+      まとめると、勝ちやすい吸収は
+      <strong>「場所がよくて、時間もよくて、入ったあとすぐ反応する」</strong>
+      とき。
+    </blockquote>
+
+    <h2 id="losing-pattern">負けやすい場面</h2>
+    <p>
+      負けるパターンもかなり共通している。
+      典型的なのは次の3つ。
+    </p>
+    <ul>
+      <li><strong>東京の昼</strong> など、だましが増えやすい時間帯</li>
+      <li><strong>平均から遠すぎる場所</strong> にいるとき</li>
+      <li><strong>入ってすぐ悪化する</strong> とき</li>
+    </ul>
+    <p>
+      たとえるなら、山の上の細い道で荷物を押している状態。
+      うまくいくときは少し進むが、失敗するとすぐ転がりやすい。
+    </p>
+
+    <h2 id="how-to-use">どう使うか</h2>
+    <p>
+      このシグナルのコツは、<strong>当たりやすいものだけ残す</strong> こと。
+      勝率を上げたいなら、無理に回数を増やすより、怪しい場面を捨てるほうが効く。
+    </p>
+    <ol>
+      <li>まず「場所」が変かどうかを見る</li>
+      <li>次に「時間帯」が悪くないかを見る</li>
+      <li>最後に「入ったあと15分くらいの反応」を見る</li>
+    </ol>
+    <p>
+      もし15分くらいで含み損が続くなら、<strong>見切る</strong>。
+      吸収が本物なら、もっと早く答えが出やすい。
+    </p>
+
+    <h2 id="checklist">実戦チェックリスト</h2>
+    <ul>
+      <li>売りが出ているのに、価格があまり下がっていないか</li>
+      <li>VWAPや直近の価格帯から、遠すぎないか</li>
+      <li>東京の昼みたいな悪い時間帯ではないか</li>
+      <li>入ったあと、すぐ反応しているか</li>
+      <li>15分見てダメなら、早めに切るか</li>
+    </ul>
+
+    <p>
+      要するに、吸収シグナルは「何となく強そう」ではなく、
+      <strong>“売られても落ちない場所” を拾う道具</strong>。
+      そこを外すと負けやすいので、<strong>場所・時間・反応</strong> の3点を見るのが大事。
+    </p>
+  </section>
+
+  <section class="references">
+    <h2>🔗 参照URL</h2>
+    <ul>
+      <li><a href="file:///home/weed420/absorption_phase1_handoff_20260615.md" target="_blank" rel="noopener">file:///home/weed420/absorption_phase1_handoff_20260615.md</a></li>
+      <li><a href="file:///home/weed420/absorption_phase1_handoff.md" target="_blank" rel="noopener">file:///home/weed420/absorption_phase1_handoff.md</a></li>
+      <li><a href="https://www.investopedia.com/terms/v/vwap.asp" target="_blank" rel="noopener">https://www.investopedia.com/terms/v/vwap.asp</a></li>
+      <li><a href="https://www.investopedia.com/terms/a/atr.asp" target="_blank" rel="noopener">https://www.investopedia.com/terms/a/atr.asp</a></li>
+    </ul>
+  </section>
+</article>
+
+<footer class="site-footer">
+  <p>tech-notes &mdash; built with Hermes Agent</p>
+</footer>
+
+</body>
+</html>
